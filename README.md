@@ -1,93 +1,79 @@
 # starVLA for Motion Generation
 
-基于 starVLA 框架的动作生成项目。
+## 简介
 
-## 项目简介
+基于 starVLA 框架的人体动作生成项目，使用 Diffusion Transformer (DiT) 在潜在空间中进行动作建模。
 
-本项目基于 [starVLA](https://github.com/starVLA/starVLA) 框架，专注于动作生成（Motion Generation）任务。starVLA 是一个模块化、可扩展的 Vision-Language-Action (VLA) 模型开发平台，支持快速原型设计和独立调试。
+## 主要特性
 
-## 主要功能
+- **64 维动作潜在空间表示** - 高效的动作编码与解码
+- **DiT-B 架构** - 1024 hidden dimension, 16 layers
+- **Qwen2.5-VL-3B-Instruct** - 作为视觉编码器，支持多模态理解
+- **扩散模型动作预测** - 8 步推理，高效生成
 
-- **模块化设计**：模型、数据、训练器、配置等组件高度解耦，支持即插即用
-- **多种 VLA 架构支持**：
-  - StarVLA-FAST：自回归离散动作 token
-  - StarVLA-OFT：并行连续动作解码
-  - StarVLA-PI：基于 Flow-Matching 的扩散动作
-  - StarVLA-GR00T：双系统架构（VLM 作为 System 2，Flow-Matching 作为 System 1）
-- **灵活的训练方案**：支持 SFT、多目标联合训练、跨躯体联合训练等
-- **多基准集成**：支持 LIBERO、SimplerEnv、RoboTwin、VLA-Arena 等基准
+## 训练配置（当前运行）
 
-## 快速开始
-
-### 环境安装
-
-```bash
-# 克隆仓库
-git clone git@github.com:Hxxxz0/starvla4motion.git
-cd starvla4motion
-
-# 安装依赖
-pip install -e .
+```yaml
+GPU: NVIDIA A100-SXM4-80GB (双卡训练)
+Batch Size: 32 (per device)
+总训练步数：100,000
+学习率：1e-5 (cosine scheduler, min 5e-7)
+Warmup: 10% (10,000 步)
+数据集：motion_latent (robot_humanml_data_v2)
 ```
 
-### 训练
+## 训练结果
 
-```bash
-# 使用示例配置进行训练
-bash run_oxe_train.sh
+| 指标 | 初始值 | 最终值 | 下降幅度 |
+|------|--------|--------|----------|
+| action_dit_loss | 1.99 (step 10) | 0.98 (step 100k) | 50.8% |
+| mse_score | 0.00807 (step 5k) | 0.00535 (step 100k) | 33.7% |
 
-# 或使用自定义配置
-python starVLA/training/train_starvla.py \
-    --config-path starVLA/config \
-    --config-name your_config.yaml
-```
-
-### 评估
-
-```bash
-# 在特定基准上评估
-python examples/LIBERO/eval_files/eval_libero.py \
-    --model_path /path/to/checkpoint
-```
+**训练时长**：约 10.5 小时  
+**最终 checkpoint**: `results/Checkpoints/motion_ar_cuda0_bs32_full_20260411/final_model`
 
 ## 目录结构
 
 ```
 starVLA/
 ├── starVLA/              # 核心代码
-│   ├── model/            # 模型定义
-│   ├── dataloader/       # 数据加载器
 │   ├── training/         # 训练脚本
+│   ├── models/           # 模型定义
 │   └── config/           # 配置文件
-├── examples/             # 示例和基准
-├── results/              # 训练结果（已忽略）
-├── wandb/                # W&B 日志（已忽略）
-└── README.md             # 本文件
+├── results/              # 训练结果（已 gitignore）
+├── examples/             # 示例脚本
+└── README.md
 ```
 
-## 训练说明
+## 使用方法
 
-1. **数据准备**：根据目标基准准备数据集
-2. **配置修改**：在 `starVLA/config/` 下修改训练配置
-3. **启动训练**：使用训练脚本启动，支持单卡/多卡训练
-4. **监控进度**：通过 W&B 或 TensorBoard 监控训练进度
+### 训练
 
-## 评估说明
+```bash
+source /root/miniconda3/etc/profile.d/conda.sh
+conda activate starVLA
+cd starVLA/training
+python train_starvla.py --config_path ../config/your_config.yaml
+```
 
-1. **加载 checkpoint**：从 `results/` 目录选择最佳 checkpoint
-2. **运行评估**：使用对应的评估脚本
-3. **结果分析**：评估结果将保存在 `results/` 目录
+### 推理
+
+```python
+from starVLA.models.MotionAR import MotionAR
+
+model = MotionAR.from_pretrained("path/to/checkpoint")
+output = model.predict_action(examples, use_ddim=True, num_ddim_steps=20)
+```
 
 ## 注意事项
 
-- 大文件（checkpoints、模型文件、数据集等）已通过 `.gitignore` 排除
-- 训练结果和日志不会提交到仓库
-- 请确保有足够的 GPU 内存进行训练
+- ⚠️ **评估代码需要修复**：添加 `model.eval()` 和 `torch.inference_mode()`
+- 📦 **大文件已排除**：checkpoints、wandb 日志等已通过 `.gitignore` 排除
 
-## 致谢
+## 作者
+
+Hxxxz0
+
+---
 
 本项目基于 [starVLA](https://github.com/starVLA/starVLA) 框架开发。
-
-## License
-
-继承原项目 License，详见 [LICENSE](LICENSE) 文件。
