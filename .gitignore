@@ -182,7 +182,7 @@ annotated_image.png
 data_processed
 llavavla/conf/qwenvla_lmdb_3Lpretrain.yaml
 extracted_frames
-starVLA/config/deepseeds/*
+# DeepSpeed configs (should be tracked)
 **/bar
 llavavla/model/openvla_temp
 real_deployment/upload/push_model_to_hf.py
@@ -194,9 +194,9 @@ real_deployment/deploy/*bar
 !playground/demo_data/**/*.parquet
 experiments/libero/logs/2025-08-10/17-18-26+checkpoints_steps_60000_pytorch_model.pt_s1-8_s2-16_s2cand-5_ntl-1.0_ntu-1.0_ttl-0.9_ttu-1.0/rollout_put_the_bowl_on_top_of_the_cabinet_failure.mp4
 
-**/*.log
+*.log
 
-**/*.jpg
+# Keep jpg images in assets/ etc.
 debug_images/step1_raw.npy
 test_image.jpg
 test_image.jpg.npy
@@ -235,15 +235,14 @@ tmp
 **/*.npy
 **/*.parquet
 
-*/**/*.md
-*/*.md
 
-
-logs/*
-
-# Model files
+# Large model files - not tracked
 *.pth
 *.bin
+playground/Pretrained_models
+results/
+cache/
+tmp/
 
 # W&B logs
 wandb/
