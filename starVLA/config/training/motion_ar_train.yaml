@@ -1,9 +1,9 @@
 run_id: motion_ar
 run_root_dir: results/Checkpoints
 seed: 42
-trackers: [jsonl, wandb]
-wandb_entity: your_wandb_entity
-wandb_project: llavavla
+trackers: [jsonl]
+wandb_entity: ""
+wandb_project: ""
 is_debug: false
 
 framework:
@@ -41,6 +41,9 @@ framework:
       num_layers: 16
       output_dim: 1024
       positional_embeddings: null
+  # WorldModel (Phase 2)
+  use_world_model: true
+  world_model_checkpoint: results/Checkpoints/world_model/checkpoints/steps_50000_pytorch_model.pt
 
 datasets:
   vla_data:
@@ -69,7 +72,7 @@ trainer:
   lr_scheduler_type: cosine_with_min_lr
   scheduler_specific_kwargs:
     min_lr: 5.0e-07
-  freeze_modules: qwen_vl_interface
+  freeze_modules: qwen_vl_interface,world_model
   loss_scale:
     vla: 1.0
   max_grad_norm: 1.0

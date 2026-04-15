@@ -12,7 +12,7 @@
 - **扩散模型动作预测** - 8 步推理，高效生成
 - **World Model** - 预测未来摘要 token (C_t: DCT plan tokens, P_t: dynamics tokens)，为 MotionAR 提供结构化条件
 
-## World Model (Phase 1)
+## World Model (Phase 1 — standalone)
 
 World Model 从文本和历史序列中预测未来摘要 token，作为 MotionAR 的结构化先验条件：
 
@@ -32,6 +32,35 @@ World Model 从文本和历史序列中预测未来摘要 token，作为 MotionA
 # World Model 训练
 accelerate launch -m starVLA.training.train_world_model \
   --config_yaml starVLA/config/training/world_model_train.yaml
+```
+
+## World Model Integration (Phase 2)
+
+训练好的 WorldModel 作为冻结条件提供器嵌入 MotionAR：
+
+```
+text → Qwen → text_hidden [B, L, 2048]
+                      ↓
+obs_latent (0~150帧) → WM(text_hidden, z_past=obs_latent) → c_cond [B,4,512] + p_cond [B,4,512]
+                                                            ↓
+                                                  world_token_proj → [B, 8, 2048]
+                                                            ↓
+condition = [text_hidden; obs_hidden; world_tokens] → DiT-B → action
+```
+
+**关键设计**:
+- WorldModel 完全冻结（eval + no_grad），仅 `world_token_proj` (~1M) 可训练
+- WM 与 DiT 共用同一段 `obs_latent`（0~150 帧），分布与 Phase 1 训练一致
+- DiT 输入不变，仅在 condition 末尾拼接 8 个 world token
+- 推理时每个 chunk 重新跑一次 WM 前向（输入 history_latents 随生成增长）
+
+```yaml
+# motion_ar_train.yaml 配置
+framework:
+  use_world_model: true
+  world_model_checkpoint: results/Checkpoints/world_model/checkpoints/steps_50000_pytorch_model.pt
+trainer:
+  freeze_modules: qwen_vl_interface,world_model
 ```
 
 ## 训练配置（当前运行）
