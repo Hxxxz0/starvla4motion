@@ -1,0 +1,65 @@
+run_id: world_model
+run_root_dir: results/Checkpoints
+seed: 42
+trackers: [jsonl, wandb]
+wandb_entity: your_wandb_entity
+wandb_project: starvla-world-model
+is_debug: false
+
+# Data
+data:
+  data_root_dir: /limx_embap/tos/user/Jensen/project/Starworld/robot_humanml_data_v2
+  per_device_batch_size: 64
+  num_workers: 4
+  train_split: train
+  eval_split: test
+  H: 16                # future horizon (covers > MotionAR's 15-frame chunk)
+  max_obs_frames: 150  # max past frames (same as MotionAR)
+
+# Model
+model:
+  d_model: 512
+  n_heads: 8
+  n_layers_enc: 6
+  n_layers_dec: 2
+  d_ffn: 2048
+  dropout: 0.1
+  D_text: 2048
+  D_action: 38
+  D_latent: 64
+  M_c: 4
+  M_p: 4
+  n_text_queries: 8
+  d_actor: 512
+
+# Qwen for text encoding
+qwenvl:
+  base_vlm: ./playground/Pretrained_models/Qwen2.5-VL-3B-Instruct
+  attn_implementation: sdpa
+
+# Trainer
+trainer:
+  max_train_steps: 50000
+  num_warmup_steps: 5000
+  save_interval: 5000
+  eval_interval: 500
+  base_lr: 1.0e-4
+  lr_scheduler_type: cosine_with_min_lr
+  scheduler_specific_kwargs:
+    min_lr: 5.0e-7
+  weight_decay: 0.01
+  logging_frequency: 10
+  gradient_clipping: 1.0
+  gradient_accumulation_steps: 1
+  optimizer:
+    name: AdamW
+    betas: [0.9, 0.95]
+    eps: 1.0e-8
+  save_format: pt
+
+# Loss weights
+loss:
+  lambda_c: 1.0
+  lambda_p: 0.5
+  lambda_aux: 0.1
+  alpha_cos: 0.2

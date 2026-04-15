@@ -10,16 +10,39 @@
 - **DiT-B 架构** - 1024 hidden dimension, 16 layers
 - **Qwen2.5-VL-3B-Instruct** - 作为视觉编码器，支持多模态理解
 - **扩散模型动作预测** - 8 步推理，高效生成
+- **World Model** - 预测未来摘要 token (C_t: DCT plan tokens, P_t: dynamics tokens)，为 MotionAR 提供结构化条件
+
+## World Model (Phase 1)
+
+World Model 从文本和历史序列中预测未来摘要 token，作为 MotionAR 的结构化先验条件：
+
+```
+(text_hidden, z_past) → WorldModel → (C_t, P_t)
+  z_past: 变长历史 latent [T_past, 64] (T_past ≤ 150，带 padding mask)
+  C_t: 4×64 — DCT 投影未来 latent plan tokens
+  P_t: 4×38 — 未来 action 动力学统计量
+```
+
+**架构**: TextCompressor(8 queries) → LatentProjector(64→512) → CausalTransformerEncoder(6 layers, mixed visibility) → PlanDecoder + DynamicsDecoder
+**参数**: 38.5M trainable, d_model=512, H=16 future horizon (> MotionAR chunk 15)
+**监督**: 确定性构造目标 — C_t* (DCT-II 投影), P_t* (mean/change/velocity/acceleration)
+**训练配置**: 50k steps, batch_size=64, lr=1e-4 (cosine), warmup=5k
+
+```bash
+# World Model 训练
+accelerate launch -m starVLA.training.train_world_model \
+  --config_yaml starVLA/config/training/world_model_train.yaml
+```
 
 ## 训练配置（当前运行）
 
 ```yaml
-GPU: NVIDIA A100-SXM4-80GB (双卡训练)
-Batch Size: 32 (per device)
-总训练步数：100,000
-学习率：1e-5 (cosine scheduler, min 5e-7)
-Warmup: 10% (10,000 步)
-数据集：motion_latent (robot_humanml_data_v2)
+GPU: NVIDIA A100-SXM4-80GB (单卡)
+Batch Size: 64 (per device)
+总训练步数：50,000
+学习率：1e-4 (cosine scheduler, min 5e-7)
+Warmup: 5,000 步
+数据集：robot_humanml_data_v2 (train split, eval on test split)
 ```
 
 ## 训练结果
@@ -67,7 +90,9 @@ output = model.predict_action(examples, use_ddim=True, num_ddim_steps=20)
 
 ## 注意事项
 
-- ⚠️ **评估代码需要修复**：添加 `model.eval()` 和 `torch.inference_mode()`
+- 评估使用独立 test split dataloader，平均 5 个 batch 的 loss
+- z_past 带 padding mask，无效帧不参与注意力计算
+- 多 GPU 下 Qwen 自动分配到对应 rank 的 GPU
 - 📦 **大文件已排除**：checkpoints、wandb 日志等已通过 `.gitignore` 排除
 
 ## 作者
