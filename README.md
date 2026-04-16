@@ -93,13 +93,39 @@ Warmup: 5,000 步
 
 ## 训练结果
 
-| 指标 | 初始值 | 最终值 | 下降幅度 |
-|------|--------|--------|----------|
-| action_dit_loss | 1.99 (step 10) | 0.98 (step 100k) | 50.8% |
-| mse_score | 0.00807 (step 5k) | 0.00535 (step 100k) | 33.7% |
+### World Model v2 (当前)
 
-**训练时长**：约 10.5 小时  
-**最终 checkpoint**: `results/Checkpoints/motion_ar_cuda0_bs32_full_20260411/final_model`
+| Checkpoint | Eval Loss | C Loss | P Loss | Aux Loss |
+|-----------|----------|--------|--------|----------|
+| steps_5000 | ~1.20 | ~1.19 | — | — |
+| steps_35000 | 1.1819 | 1.1698 | — | — |
+| steps_40000 | 1.1519 | 1.1420 | 0.0187 | 0.0048 |
+| steps_42000 | 1.1660 | 1.1550 | 0.0198 | 0.0111 |
+
+WM v2 配置: max_obs_frames=1000, max_seq_len=1024, bs=64, 总计 50k 步。
+
+### MotionAR + World Model v2 (当前, bs=8)
+
+| Step | action_dit_loss | mse_score |
+|------|-----------------|-----------|
+| 10 | 1.984 | 0.0110 |
+| 110 | 1.875 | 0.0109 |
+| 500 | 1.746 | 0.0107 |
+
+配置: bs=8, max_train_steps=5000, eval_interval=500, WM v2 checkpoint steps_35000。
+
+### MotionAR + World Model v1 (历史, bs=32)
+
+| Step | action_dit_loss | mse_score |
+|------|-----------------|-----------|
+| 10 | 1.987 | 0.0110 |
+| 110 | 1.858 | 0.0109 |
+| 510 | 1.674 | 0.0105 |
+| 5000 | — | 0.00807 |
+| 100k | 0.98 | 0.00535 |
+
+**WM v1 训练时长**：约 10.5 小时  
+**最终 checkpoint**: `results/Checkpoints/motion_ar/checkpoints/steps_100000_pytorch_model.pt`
 
 ## 目录结构
 
