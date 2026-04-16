@@ -186,13 +186,35 @@ def main(cfg) -> None:
     n_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
     logger.info(f"WorldModel trainable parameters: {n_params:,}")
 
+    # Resume from checkpoint if specified
+    resume_from = getattr(args, "resume_from", "")
+    completed_steps = 0
+    if resume_from and os.path.isfile(resume_from):
+        logger.info(f"Resuming from checkpoint: {resume_from}")
+        ckpt = torch.load(resume_from, map_location="cpu", weights_only=True)
+        model.load_state_dict(ckpt)
+        # Extract step count from filename (e.g., "steps_30000_pytorch_model.pt")
+        basename = os.path.basename(resume_from)
+        if basename.startswith("steps_"):
+            completed_steps = int(basename.split("_")[1])
+        logger.info(f"Resumed at step {completed_steps}")
+    elif resume_from:
+        logger.warning(f"Checkpoint file not found: {resume_from}, starting from scratch")
+
+    # Auto-compute max_obs_frames if null: max_seq_len - n_text_queries
+    max_obs_frames = cfg.data.get("max_obs_frames", None)
+    if max_obs_frames is None:
+        n_text_queries = cfg.model.get("n_text_queries", 8)
+        max_obs_frames = cfg.model.max_seq_len - n_text_queries
+        logger.info(f"Auto max_obs_frames = {max_obs_frames} (max_seq_len={cfg.model.max_seq_len} - n_text={n_text_queries})")
+
     # Build dataloader
     dataloader = build_world_model_dataloader(
         data_root_dir=cfg.data.data_root_dir,
         split=cfg.data.train_split,
         batch_size=cfg.data.per_device_batch_size,
         H=cfg.data.H,
-        max_obs_frames=cfg.data.max_obs_frames,
+        max_obs_frames=max_obs_frames,
         num_workers=cfg.data.num_workers,
     )
 
@@ -202,7 +224,7 @@ def main(cfg) -> None:
         split=cfg.data.eval_split,
         batch_size=cfg.data.per_device_batch_size,
         H=cfg.data.H,
-        max_obs_frames=cfg.data.max_obs_frames,
+        max_obs_frames=max_obs_frames,
         num_workers=cfg.data.num_workers,
     )
 
@@ -418,6 +440,12 @@ if __name__ == "__main__":
         type=str,
         default="starVLA/config/training/world_model_train.yaml",
         help="Path to YAML config",
+    )
+    parser.add_argument(
+        "--resume_from",
+        type=str,
+        default="",
+        help="Path to checkpoint .pt file to resume from",
     )
     args, clipargs = parser.parse_known_args()
 

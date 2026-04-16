@@ -221,6 +221,24 @@ class CausalTransformerEncoder(nn.Module):
         self.pos_embed = nn.Embedding(max_seq_len, d_model)
         self.dropout = nn.Dropout(dropout)
 
+    @staticmethod
+    def resize_pos_embed(old_weight: torch.Tensor, new_size: int) -> torch.Tensor:
+        """Resize position embedding, preserving existing positions.
+
+        Old positions are kept verbatim; new positions are initialized by
+        repeating the existing pattern with small Gaussian noise.
+        """
+        old_len, dim = old_weight.shape
+        if old_len >= new_size:
+            return old_weight[:new_size]
+        new_weight = torch.zeros(new_size, dim, dtype=old_weight.dtype)
+        new_weight[:old_len] = old_weight
+        # New positions: repeat existing pattern + small noise
+        repeat = (new_size + old_len - 1) // old_len
+        repeated = old_weight.repeat(repeat, 1)[:new_size]
+        new_weight[old_len:] = repeated[old_len:] + torch.randn_like(repeated[old_len:]) * 0.02
+        return new_weight
+
     def forward(
         self,
         text_tokens: torch.Tensor,

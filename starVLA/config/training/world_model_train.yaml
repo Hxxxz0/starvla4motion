@@ -1,9 +1,9 @@
-run_id: world_model
+run_id: world_model_v2
 run_root_dir: results/Checkpoints
 seed: 42
-trackers: [jsonl, wandb]
-wandb_entity: your_wandb_entity
-wandb_project: starvla-world-model
+trackers: [jsonl]
+wandb_entity: ""
+wandb_project: ""
 is_debug: false
 
 # Data
@@ -14,7 +14,7 @@ data:
   train_split: train
   eval_split: test
   H: 16                # future horizon (covers > MotionAR's 15-frame chunk)
-  max_obs_frames: 150  # max past frames (same as MotionAR)
+  max_obs_frames: 1000  # explicit cap: total = 8(text) + 1000 = 1008 < pos_embed[1024]
 
 # Model
 model:
@@ -31,6 +31,7 @@ model:
   M_p: 4
   n_text_queries: 8
   d_actor: 512
+  max_seq_len: 1024
 
 # Qwen for text encoding
 qwenvl:

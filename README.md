@@ -18,20 +18,36 @@ World Model 从文本和历史序列中预测未来摘要 token，作为 MotionA
 
 ```
 (text_hidden, z_past) → WorldModel → (C_t, P_t)
-  z_past: 变长历史 latent [T_past, 64] (T_past ≤ 150，带 padding mask)
+  z_past: 变长历史 latent [T_past, 64] (T_past ≤ 1000，带 padding mask)
   C_t: 4×64 — DCT 投影未来 latent plan tokens
   P_t: 4×38 — 未来 action 动力学统计量
 ```
 
-**架构**: TextCompressor(8 queries) → LatentProjector(64→512) → CausalTransformerEncoder(6 layers, mixed visibility) → PlanDecoder + DynamicsDecoder
+**架构**: TextCompressor(8 queries) → LatentProjector(64→512) → CausalTransformerEncoder(6 layers, pos_embed[1024,512], mixed visibility) → PlanDecoder + DynamicsDecoder
 **参数**: 38.5M trainable, d_model=512, H=16 future horizon (> MotionAR chunk 15)
 **监督**: 确定性构造目标 — C_t* (DCT-II 投影), P_t* (mean/change/velocity/acceleration)
-**训练配置**: 50k steps, batch_size=64, lr=1e-4 (cosine), warmup=5k
+**训练配置**: 50k steps, batch_size=32/64, lr=1e-4 (cosine), warmup=5k
+
+### v2 变更（取消 150 帧上限）
+
+| 项目 | v1 | v2 |
+|------|-----|-----|
+| max_obs_frames | 150 | 1000（覆盖 99.8% 样本） |
+| max_seq_len (pos_embed) | 512 | 1024 |
+| 前向兼容 | - | 旧 checkpoint 自动 resize pos_embed |
+| 训练恢复 | - | 支持 `--resume_from <ckpt.pt>` |
+
+**数据集统计**: T 均值 232.5, 中位数 206.5, 最大 1477。v2 取消 150 帧截断，WM 可见完整历史（实际截断到 1000 帧）。
 
 ```bash
 # World Model 训练
 accelerate launch -m starVLA.training.train_world_model \
   --config_yaml starVLA/config/training/world_model_train.yaml
+
+# 从 checkpoint 恢复训练
+accelerate launch -m starVLA.training.train_world_model \
+  --config_yaml starVLA/config/training/world_model_train.yaml \
+  --resume_from results/Checkpoints/world_model_v2/checkpoints/steps_35000_pytorch_model.pt
 ```
 
 ## World Model Integration (Phase 2)
@@ -41,7 +57,7 @@ accelerate launch -m starVLA.training.train_world_model \
 ```
 text → Qwen → text_hidden [B, L, 2048]
                       ↓
-obs_latent (0~150帧) → WM(text_hidden, z_past=obs_latent) → c_cond [B,4,512] + p_cond [B,4,512]
+obs_latent (0~1000帧) → WM(text_hidden, z_past=obs_latent) → c_cond [B,4,512] + p_cond [B,4,512]
                                                             ↓
                                                   world_token_proj → [B, 8, 2048]
                                                             ↓
@@ -50,9 +66,10 @@ condition = [text_hidden; obs_hidden; world_tokens] → DiT-B → action
 
 **关键设计**:
 - WorldModel 完全冻结（eval + no_grad），仅 `world_token_proj` (~1M) 可训练
-- WM 与 DiT 共用同一段 `obs_latent`（0~150 帧），分布与 Phase 1 训练一致
+- WM 与 DiT 共用同一段 `obs_latent`（0~1000 帧）
 - DiT 输入不变，仅在 condition 末尾拼接 8 个 world token
 - 推理时每个 chunk 重新跑一次 WM 前向（输入 history_latents 随生成增长）
+- 前向兼容：旧 WM checkpoint (pos_embed [512,512]) 加载到新模型 (pos_embed [1024,512]) 时自动 resize
 
 ```yaml
 # motion_ar_train.yaml 配置

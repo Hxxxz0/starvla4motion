@@ -238,6 +238,15 @@ class MotionAR(baseframework):
                 filtered[k[len("world_model.") :]] = v
             else:
                 filtered[k] = v
+        # Handle pos_embed size mismatch for forward compatibility
+        model_sd = self.world_model.state_dict()
+        for k in list(filtered.keys()):
+            if "pos_embed" in k and k in model_sd:
+                if filtered[k].shape != model_sd[k].shape:
+                    from starVLA.model.world_model.world_blocks import CausalTransformerEncoder
+
+                    filtered[k] = CausalTransformerEncoder.resize_pos_embed(filtered[k], model_sd[k].shape[0])
+                    logger.info(f"Resized pos_embed {k}: {filtered[k].shape}")
         missing, unexpected = self.world_model.load_state_dict(filtered, strict=False)
         if missing:
             logger.warning(f"WM missing keys: {missing}")

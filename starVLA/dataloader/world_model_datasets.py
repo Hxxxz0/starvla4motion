@@ -85,7 +85,7 @@ class WorldModelDataset(Dataset):
         data_root_dir: str,
         split: str = "train",
         H: int = 16,
-        max_obs_frames: int = 150,
+        max_obs_frames: int | None = None,
         debug_max_samples: int | None = None,
     ):
         self.data_root = Path(data_root_dir)
@@ -172,9 +172,9 @@ class WorldModelDataset(Dataset):
         max_t = T - self.H
         t = random.randint(1, max_t)
 
-        # z_past: all frames before t, truncated to max_obs_frames (like MotionAR)
+        # z_past: all frames before t, truncated to max_obs_frames if set
         z_past_full = torch.from_numpy(latent_norm[:t])  # [t, 64]
-        if z_past_full.shape[0] > self.max_obs_frames:
+        if self.max_obs_frames is not None and z_past_full.shape[0] > self.max_obs_frames:
             z_past_full = z_past_full[-self.max_obs_frames:]  # keep most recent
 
         z_fut = torch.from_numpy(latent_norm[t : t + self.H])  # [H, 64]
@@ -203,7 +203,7 @@ def build_world_model_dataloader(
     split: str = "train",
     batch_size: int = 64,
     H: int = 16,
-    max_obs_frames: int = 150,
+    max_obs_frames: int | None = None,
     num_workers: int = 4,
     debug_max_samples: int | None = None,
 ) -> DataLoader:

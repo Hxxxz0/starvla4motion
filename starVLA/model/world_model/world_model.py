@@ -49,6 +49,9 @@ class WorldModelConfig:
     # Actor adapter dimensions
     d_actor: int = 512
 
+    # Sequence length limit
+    max_seq_len: int = 1024
+
 
 class WorldModel(nn.Module):
     """
@@ -85,6 +88,7 @@ class WorldModel(nn.Module):
             n_layers=cfg.n_layers_enc,
             d_ffn=cfg.d_ffn,
             dropout=cfg.dropout,
+            max_seq_len=cfg.max_seq_len,
         )
 
         # 4. Plan decoder: 4 queries → cross-attend → [B, 4, d_model]
