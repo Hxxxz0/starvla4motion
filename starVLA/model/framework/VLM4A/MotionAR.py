@@ -22,6 +22,7 @@ class MotionARDefaultConfig:
     name: str = "MotionAR"
     latent_dim: int = 64
     max_obs_frames: int = 150
+    wm_max_obs_frames: int = 1000  # WorldModel z_past upper limit
     obs_encoder_hidden_dim: int = 768
     # WorldModel (Phase 2)
     use_world_model: bool = False
@@ -107,6 +108,7 @@ class MotionAR(baseframework):
 
         self.latent_dim = getattr(self.config.framework, "latent_dim", self.config.framework.action_model.action_dim)
         self.max_obs_frames = self.config.framework.max_obs_frames
+        self.wm_max_obs_frames = getattr(self.config.framework, "wm_max_obs_frames", 1000)
         self.latent_obs_encoder = LatentObsEncoder(
             latent_dim=self.latent_dim,
             hidden_size=vlm_hidden_size,
@@ -206,9 +208,17 @@ class MotionAR(baseframework):
             world_hidden: [B, 8, 2048] projected world tokens.
             world_mask: [B, 8] bool mask (all True).
         """
+        # Truncate obs_latents to WM capacity
+        truncated = [
+            np.asarray(o)[-self.wm_max_obs_frames:]
+            if np.asarray(o).shape[0] > self.wm_max_obs_frames
+            else np.asarray(o)
+            for o in obs_latents
+        ]
+
         device = text_hidden.device
         dtype = text_hidden.dtype
-        padded, lengths = self._pad_obs_latents(obs_latents, device, dtype)
+        padded, lengths = self._pad_obs_latents(truncated, device, dtype)
 
         # Convert text_hidden to float32 to match WM training dtype
         text_hidden_fp32 = text_hidden.to(torch.float32)
@@ -352,9 +362,13 @@ class MotionAR(baseframework):
                 condition = torch.cat([text_hidden, obs_hidden], dim=1)
                 encoder_attention_mask = torch.cat([text_mask, obs_mask], dim=1)
 
-                # WorldModel condition
+                # WorldModel condition — use full history (up to wm_max_obs_frames)
                 if self.use_world_model:
-                    world_hidden, world_mask = self._build_world_condition(text_hidden, obs_windows)
+                    wm_obs = [
+                        h[-self.wm_max_obs_frames:] if h.shape[0] > self.wm_max_obs_frames else h
+                        for h in history_latents
+                    ]
+                    world_hidden, world_mask = self._build_world_condition(text_hidden, wm_obs)
                     condition = torch.cat([condition, world_hidden], dim=1)
                     encoder_attention_mask = torch.cat([encoder_attention_mask, world_mask], dim=1)
 
