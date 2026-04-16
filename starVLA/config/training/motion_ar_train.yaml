@@ -1,4 +1,4 @@
-run_id: motion_ar
+run_id: motion_ar_wm_v2_full
 run_root_dir: results/Checkpoints
 seed: 42
 trackers: [jsonl]
@@ -43,7 +43,7 @@ framework:
       positional_embeddings: null
   # WorldModel (Phase 2)
   use_world_model: true
-  world_model_checkpoint: results/Checkpoints/world_model/checkpoints/steps_50000_pytorch_model.pt
+  world_model_checkpoint: results/Checkpoints/world_model_v2/checkpoints/steps_50000_pytorch_model.pt
 
 datasets:
   vla_data:
